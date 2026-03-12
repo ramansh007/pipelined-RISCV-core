@@ -216,7 +216,7 @@ The design was validated end-to-end using an in-place **bubble sort** benchmark 
 ## 🏗️ Architecture
 
 <p align="center">
-  <img src="docs/Architecture.png" />
+  <img src="Docs/Architecture.png" />
   <br/>
   <em>5-stage pipeline with forwarding (blue) and hazard detection (blue) control paths</em>
 </p>
