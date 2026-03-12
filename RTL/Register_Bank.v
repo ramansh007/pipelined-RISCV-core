@@ -28,6 +28,15 @@ module Register_Bank (
         end
     end
 
-    assign read_data1 = (rs1 == 5'b0) ? 32'b0 : Registers[rs1];
-    assign read_data2 = (rs2 == 5'b0) ? 32'b0 : Registers[rs2];
+//    assign read_data1 = (rs1 == 5'b0) ? 32'b0 : Registers[rs1];
+//    assign read_data2 = (rs2 == 5'b0) ? 32'b0 : Registers[rs2];
+
+// AFTER (with same-cycle write-forwarding — fixes the bug):
+    assign read_data1 = (rs1 == 5'b0)        ? 32'b0      :
+                        (RegWrite && rd==rs1) ? Write_data :
+                                                Registers[rs1];
+    
+    assign read_data2 = (rs2 == 5'b0)        ? 32'b0      :
+                        (RegWrite && rd==rs2) ? Write_data :
+                                                Registers[rs2];
 endmodule

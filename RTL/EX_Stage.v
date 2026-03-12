@@ -1,7 +1,6 @@
 // EX STAGE
 `timescale 1ns / 1ps
 
-
 module EX_Stage (
     input clk,
     input reset,
@@ -17,6 +16,10 @@ module EX_Stage (
     input [1:0] ID_EX_ALUOp,
     input  [2:0] ID_EX_funct3,
     input        ID_EX_funct7,
+    input        ID_EX_Branch,      // Branch control signal from ID/EX register
+    input [31:0] ID_EX_pc,          // PC of branch instruction (for branch_target = PC + imm)
+    output       branch_taken,      // Goes to PC MUX in IF_Stage and Hazard Detection Unit
+    output [31:0] branch_target,    // PC + imm, goes to IF_Stage PC MUX
     output [31:0] EX_MEM_alu_result,
     output [4:0]  EX_MEM_rd,
     output [31:0] EX_MEM_rs2_data,
@@ -29,7 +32,7 @@ module EX_Stage (
     input [4:0]  EX_MEM_rd_in,                   // EX/MEM (previous instruction)
     input        EX_MEM_RegWrite_in,
     input [31:0] EX_MEM_alu_result_in,        
-    input [4:0]  MEM_WB_rd,                      // NEW: MEM/WB (two cycles older)
+    input [4:0]  MEM_WB_rd,                      // MEM/WB (two cycles older)
     input        MEM_WB_RegWrite,
     input [31:0] MEM_WB_WriteData
 );
@@ -47,18 +50,21 @@ module EX_Stage (
         .ForwardB(ForwardB)
     );
     
+    // Post-forwarding source values
     wire [31:0] ALU_srcA =
-    (ForwardA == 2'b10) ? EX_MEM_alu_result_in :
-    (ForwardA == 2'b01) ? MEM_WB_WriteData :
-                          ID_EX_rs1_data;
+        (ForwardA == 2'b10) ? EX_MEM_alu_result_in :
+        (ForwardA == 2'b01) ? MEM_WB_WriteData :
+                              ID_EX_rs1_data;
                           
     wire [31:0] rs2_forwarded =
-    (ForwardB == 2'b10) ? EX_MEM_alu_result_in :
-    (ForwardB == 2'b01) ? MEM_WB_WriteData :
-                          ID_EX_rs2_data;
-                          
+        (ForwardB == 2'b10) ? EX_MEM_alu_result_in :
+        (ForwardB == 2'b01) ? MEM_WB_WriteData :
+                              ID_EX_rs2_data;
+    
+    // ALUSrc=0 for branches → ALU_srcB = rs2_forwarded (correct for subtraction)
+    // ALUSrc=1 for I-type/load/store → ALU_srcB = immediate
     wire [31:0] ALU_srcB =
-    (ID_EX_ALUSrc) ? ID_EX_imm : rs2_forwarded;
+        (ID_EX_ALUSrc) ? ID_EX_imm : rs2_forwarded;
 
     wire [3:0] ALU_Control_Signal;
     ALU_Control ALU_CTRL (
@@ -69,13 +75,29 @@ module EX_Stage (
     );
 
     wire [31:0] ALU_result;
-    wire zero_unused;
+    wire zero;              // CHANGED: was "wire zero_unused" — now connected to Branch_Logic
     ALU_Unit ALU (
         .A(ALU_srcA),
         .B(ALU_srcB),
         .alu_ctrl(ALU_Control_Signal),
         .ALU_result(ALU_result),
-        .zero(zero_unused)
+        .zero(zero)         // CHANGED: was ".zero(zero_unused)" — now wired to Branch_Logic
+    );
+
+    // Branch target: PC of branch instruction + sign-extended B-type immediate
+    // Immediate_Generator already produces the correct B-type immediate
+    assign branch_target = ID_EX_pc + ID_EX_imm;
+
+    //     Branch_Logic module:
+    //   - ALUOp=01 → ALU does SUB (A-B), sets zero=1 when A==B
+    //   - ALUSrc=0 → ALU_srcB = rs2_forwarded (not the immediate)
+    //   - Both ALU inputs are post-forwarding so BEQ/BNE work
+    //     even when rs1/rs2 were written by the immediately preceding instruction
+    Branch_Logic BL (
+        .branch    (ID_EX_Branch),   // Is this a branch instruction?
+        .zero      (zero),           // ALU zero flag (1 when rs1 == rs2 after SUB)
+        .funct3    (ID_EX_funct3),   // Selects BEQ (000) or BNE (001)
+        .branch_taken(branch_taken)  // 1 = redirect PC to branch_target
     );
 
     // EX/MEM pipeline register

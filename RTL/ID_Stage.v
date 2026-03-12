@@ -1,12 +1,12 @@
 // ID STAGE
 `timescale 1ns / 1ps
 
-
 module ID_Stage (
     input clk,
     input reset,
     input ID_EX_Flush,
     input [31:0] IF_ID_instr,
+    input [31:0] IF_ID_pc,          // NEW: raw PC of instruction in IF/ID (passed to ID_EX for branch target)
     input WB_RegWrite,
     input [4:0] MEM_WB_rd,
     input [31:0] WB_WriteData,
@@ -22,9 +22,10 @@ module ID_Stage (
     output [1:0] ID_EX_ALUOp,
     output  [2:0] ID_EX_funct3,
     output        ID_EX_funct7,
-    output [4:0] ID_EX_rs1,              // Forwarding
-    output [4:0] ID_EX_rs2
-    
+    output [4:0] ID_EX_rs1,
+    output [4:0] ID_EX_rs2,
+    output        ID_EX_Branch,     // NEW: Branch control signal pipelined to EX stage
+    output [31:0] ID_EX_pc         // NEW: PC pipelined to EX stage (for branch_target = PC + imm)
 );
     wire [6:0] opcode = IF_ID_instr[6:0];
     wire [4:0] rd     = IF_ID_instr[11:7];
@@ -32,11 +33,12 @@ module ID_Stage (
     wire [4:0] rs2    = IF_ID_instr[24:20];
     wire [2:0] funct3 = IF_ID_instr[14:12];
     wire       funct7 = IF_ID_instr[30];
-    wire [31:0] imm ;
+    wire [31:0] imm;
     wire [31:0] rs1_data;
     wire [31:0] rs2_data;
     wire RegWrite, MemRead, MemWrite, MemtoReg, ALUSrc;
     wire [1:0] ALUOp;
+    wire Branch;    // CHANGED: was "wire unconnected_branch" — now properly named and connected
 
     // Register file
     Register_Bank RF (
@@ -59,7 +61,6 @@ module ID_Stage (
     );
     
     // Control unit
-    wire unconnected_branch;
     Control_Unit CU (
         .Opcode(opcode),
         .RegWrite(RegWrite),
@@ -68,7 +69,7 @@ module ID_Stage (
         .MemtoReg(MemtoReg),
         .ALUSrc(ALUSrc),
         .ALUOp(ALUOp),
-        .Branch(unconnected_branch)     // Unconnected coz no jump/branch yet
+        .Branch(Branch)     // CHANGED: was ".Branch(unconnected_branch)" — now wired to Branch wire
      );
 
     // ID/EX pipeline register
@@ -103,6 +104,10 @@ module ID_Stage (
         .rs1_in(rs1),
         .rs2_in(rs2),
         .rs1_out(ID_EX_rs1),
-        .rs2_out(ID_EX_rs2)                        
+        .rs2_out(ID_EX_rs2),
+        .Branch_in(Branch),         // NEW: latch Branch control signal into ID/EX register
+        .pc_in(IF_ID_pc),           // NEW: latch raw PC into ID/EX register
+        .Branch_out(ID_EX_Branch),  // NEW: output to EX stage
+        .pc_out(ID_EX_pc)           // NEW: output to EX stage
     );
 endmodule
