@@ -196,8 +196,6 @@ Even with a **carry-save based ALU**, the forwarding control and high fan-out mu
 - [Bubble Sort Case Study](#-bubble-sort-case-study)
 - [Testbench](#-testbench)
 - [FPGA Implementation Results](#-fpga-implementation-results)
-- [File Structure](#-file-structure)
-- [How to Simulate](#-how-to-simulate)
 
 ---
 
@@ -218,7 +216,7 @@ The design was validated end-to-end using an in-place **bubble sort** benchmark 
 ## 🏗️ Architecture
 
 <p align="center">
-  <img src="docs/Architecture.png" alt="Pipelined RISC-V Architecture" width="850"/>
+  <img src="docs/Architecture.png" />
   <br/>
   <em>5-stage pipeline with forwarding (blue) and hazard detection (blue) control paths</em>
 </p>
